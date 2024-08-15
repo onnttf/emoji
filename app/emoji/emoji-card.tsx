@@ -1,5 +1,11 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+} from "react";
 import { Card } from "@/components/ui/card";
 import {
   Tooltip,
@@ -23,51 +29,91 @@ type TooltipState = {
 };
 
 // Constants for tooltip content and timing
-const TOOLTIP_INITIAL = "Click to copy";
-const TOOLTIP_COPIED = "Copied!";
 const TOOLTIP_DELAY = 2000;
 const TOOLTIP_RESET_DELAY = 2100;
 
-export default function EmojiCard({ emoji }: EmojiCardProps) {
+const TOOLTIP_STATES = {
+  INITIAL: { content: "Click to copy", isOpen: false },
+  COPIED: { content: "Copied!", isOpen: true },
+};
+
+type TooltipAction =
+  | { type: "SHOW_INITIAL" }
+  | { type: "SHOW_COPIED" }
+  | { type: "HIDE" };
+
+function tooltipReducer(
+  state: TooltipState,
+  action: TooltipAction
+): TooltipState {
+  switch (action.type) {
+    case "SHOW_INITIAL":
+      return { ...TOOLTIP_STATES.INITIAL, isOpen: true };
+    case "SHOW_COPIED":
+      return TOOLTIP_STATES.COPIED;
+    case "HIDE":
+      return { ...state, isOpen: false };
+    default:
+      return state;
+  }
+}
+
+function EmojiCard({ emoji }: EmojiCardProps) {
   // State for managing tooltip visibility and content
-  const [tooltip, setTooltip] = useState<TooltipState>({
-    isOpen: false,
-    content: TOOLTIP_INITIAL,
-  });
+  const [tooltip, dispatchTooltip] = useReducer(
+    tooltipReducer,
+    TOOLTIP_STATES.INITIAL
+  );
 
   // Function to copy emoji to clipboard and update tooltip
   const copyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(emoji.char);
-    setTooltip({ isOpen: true, content: TOOLTIP_COPIED });
+    dispatchTooltip({ type: "SHOW_COPIED" });
 
-    // Hide tooltip after a delay
     const timer = setTimeout(() => {
-      setTooltip((prev) => ({ ...prev, isOpen: false }));
+      dispatchTooltip({ type: "HIDE" });
     }, TOOLTIP_DELAY);
 
     return () => clearTimeout(timer);
   }, [emoji.char]);
 
   // Show tooltip on mouse enter
-  const handleMouseEnter = useCallback(() => {
-    setTooltip((prev) => ({ ...prev, isOpen: true }));
-  }, []);
+  const handleMouseEnter = useCallback(
+    () => dispatchTooltip({ type: "SHOW_INITIAL" }),
+    []
+  );
 
   // Hide tooltip on mouse leave
-  const handleMouseLeave = useCallback(() => {
-    setTooltip((prev) => ({ ...prev, isOpen: false }));
-  }, []);
+  const handleMouseLeave = useCallback(
+    () => dispatchTooltip({ type: "HIDE" }),
+    []
+  );
 
   // Reset tooltip content after copying
   useEffect(() => {
-    if (tooltip.content === TOOLTIP_COPIED) {
+    if (tooltip.content === TOOLTIP_STATES.COPIED.content) {
       const timer = setTimeout(() => {
-        setTooltip((prev) => ({ ...prev, content: TOOLTIP_INITIAL }));
+        dispatchTooltip({ type: "SHOW_INITIAL" });
       }, TOOLTIP_RESET_DELAY);
 
       return () => clearTimeout(timer);
     }
   }, [tooltip.content]);
+
+  // Memoize the emoji content
+  const emojiContent = useMemo(
+    () => (
+      <>
+        <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-200">
+          {emoji.char}
+        </div>
+        <div className="text-xs text-gray-500 text-center px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-2 line-clamp-2">
+          {emoji.name}
+        </div>
+      </>
+    ),
+    [emoji.char, emoji.name]
+  );
 
   return (
     <TooltipProvider>
@@ -79,12 +125,7 @@ export default function EmojiCard({ emoji }: EmojiCardProps) {
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
           >
-            <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-200">
-              {emoji.char}
-            </div>
-            <div className="text-xs text-gray-500 text-center px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-2 line-clamp-2">
-              {emoji.name}
-            </div>
+            {emojiContent}
           </Card>
         </TooltipTrigger>
         <TooltipContent>
@@ -94,3 +135,5 @@ export default function EmojiCard({ emoji }: EmojiCardProps) {
     </TooltipProvider>
   );
 }
+
+export default React.memo(EmojiCard);
