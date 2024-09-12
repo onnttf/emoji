@@ -9,7 +9,7 @@ const openai = new OpenAI({
 });
 
 const systemPrompt = `
-You are an emoji expert. Given a text input in English or Chinese, extract 5-6 relevant emojis. Provide a concise JSON output with the following structure for each emoji:
+You are an emoji expert. Given a text input in English or Chinese, extract 30-50 relevant emojis. Provide a concise JSON output with the following structure for each emoji:
 
 {
   "name": "emoji name in English",
