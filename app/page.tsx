@@ -39,14 +39,19 @@ function useScrollToTop(threshold: number) {
 }
 
 // Fetch emojis based on search term
-async function fetchEmojis(searchTerm: string, toast: ReturnType<typeof useToast>['toast']): Promise<Emoji[]> {
-  if (searchTerm.trim() === '') {
+async function fetchEmojis(
+  searchTerm: string,
+  toast: ReturnType<typeof useToast>["toast"]
+): Promise<Emoji[]> {
+  if (searchTerm.trim() === "") {
     return emojis;
   } else {
     try {
       const response = await fetch(`/api/suggestion?query=${searchTerm}`);
       if (!response.ok) {
-        throw new Error(`Unable to fetch emojis. Server responded with status: ${response.status}`);
+        throw new Error(
+          `Unable to fetch emojis. Server responded with status: ${response.status}`
+        );
       }
       const data = await response.json();
       if (!Array.isArray(data.emojis)) {
@@ -77,7 +82,7 @@ export default function EmojiBrowser() {
   const [visibleEmojis, setVisibleEmojis] = useState<Emoji[]>(emojis);
   const [displayedEmojis, setDisplayedEmojis] = useState<Emoji[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  
+
   // UI state
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
@@ -142,7 +147,9 @@ export default function EmojiBrowser() {
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('An unexpected error occurred'));
+      setError(
+        err instanceof Error ? err : new Error("An unexpected error occurred")
+      );
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
@@ -157,7 +164,7 @@ export default function EmojiBrowser() {
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchTerm(e.target.value);
-      if (e.target.value.trim() === '') {
+      if (e.target.value.trim() === "") {
         setVisibleEmojis(emojis);
         setCurrentPage(1);
       }
@@ -168,7 +175,7 @@ export default function EmojiBrowser() {
   // Handle Enter key press for search
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
+      if (e.key === "Enter") {
         handleSearch();
       }
     },
@@ -178,7 +185,7 @@ export default function EmojiBrowser() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Emoji Browser</h1>
-      
+
       {/* Search input with clear button */}
       <div className="relative mb-6">
         <Input
@@ -194,7 +201,7 @@ export default function EmojiBrowser() {
           <button
             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
             onClick={() => {
-              setSearchTerm('');
+              setSearchTerm("");
               setVisibleEmojis(emojis);
               setCurrentPage(1);
             }}
@@ -218,21 +225,25 @@ export default function EmojiBrowser() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-            {error.message || "An unexpected error occurred while loading emojis. Please try again later."}
+            {error.message ||
+              "An unexpected error occurred while loading emojis. Please try again later."}
           </AlertDescription>
         </Alert>
       )}
 
       {/* No results message */}
-      {!isLoading && !error && searchTerm.trim() !== '' && displayedEmojis.length === 0 && (
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No Results</AlertTitle>
-          <AlertDescription>
-            No emojis found for "{searchTerm}". Try a different search term or clear the search to see all emojis.
-          </AlertDescription>
-        </Alert>
-      )}
+      {!isLoading &&
+        !error &&
+        searchTerm.trim() !== "" &&
+        displayedEmojis.length === 0 && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No Results</AlertTitle>
+            <AlertDescription>
+              No emojis found for {`"${searchTerm}"`}. Try a different search term or clear the search to see all emojis.
+            </AlertDescription>
+          </Alert>
+        )}
 
       {/* Emoji grid */}
       {!isLoading && !error && displayedEmojis.length > 0 && (

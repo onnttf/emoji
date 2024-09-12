@@ -4,8 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: process.env.DEEPSEEK_APIKEY
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DEEPSEEK_APIKEY,
 });
 
 const systemPrompt = `
@@ -38,13 +38,16 @@ Example output:
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query");
   if (!query) {
-    return NextResponse.json({ error: "Query parameter is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Query parameter is required" },
+      { status: 400 }
+    );
   }
 
   try {
     const completion = await openai.chat.completions.create({
       model: "deepseek-chat",
-      response_format: { type: 'json_object' },
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: query },
@@ -54,7 +57,10 @@ export async function GET(request: NextRequest) {
     const emojis = JSON.parse(completion.choices[0].message.content ?? "[]");
     return NextResponse.json({ emojis: emojis });
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Error calling OpenAI API:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

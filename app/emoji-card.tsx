@@ -30,8 +30,8 @@ function EmojiCard({ emoji }: EmojiCardProps) {
 
     const timer1 = setTimeout(() => {
       setTooltipState((prev) => ({ ...prev, isOpen: false }));
-      const timer2 = setTimeout(() => 
-        setTooltipState(INITIAL_TOOLTIP_STATE),
+      const timer2 = setTimeout(
+        () => setTooltipState(INITIAL_TOOLTIP_STATE),
         100
       );
       return () => clearTimeout(timer2);
@@ -39,13 +39,13 @@ function EmojiCard({ emoji }: EmojiCardProps) {
     return () => clearTimeout(timer1);
   }, [emoji.char]);
 
-  const handleMouseEnter = useCallback(() => 
-    setTooltipState((prev) => ({ ...prev, isOpen: true })),
+  const handleMouseEnter = useCallback(
+    () => setTooltipState((prev) => ({ ...prev, isOpen: true })),
     []
   );
-  
-  const handleMouseLeave = useCallback(() => 
-    setTooltipState((prev) => ({ ...prev, isOpen: false })),
+
+  const handleMouseLeave = useCallback(
+    () => setTooltipState((prev) => ({ ...prev, isOpen: false })),
     []
   );
 
@@ -61,7 +61,7 @@ function EmojiCard({ emoji }: EmojiCardProps) {
         </div>
       </>
     ),
-    [emoji.char, emoji.name],
+    [emoji.char, emoji.name]
   );
 
   return (
