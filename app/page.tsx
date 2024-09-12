@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import EmojiCard from "@/app/emoji/emoji-card";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import EmojiCard from "@/app/emoji-card";
 import { Input } from "@/components/ui/input";
 import emojis from "emoji.json";
 import { useToast } from "@/components/ui/use-toast";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
+import { useQuery } from 'react-query';
+import { debounce } from 'lodash';
 
 interface Emoji {
   char: string;
@@ -14,45 +16,84 @@ interface Emoji {
 
 const ITEMS_PER_PAGE = 50;
 const SCROLL_THRESHOLD = 300;
-const DEBOUNCE_DELAY = 300;
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+function useScrollToTop(threshold: number) {
+  const [showScrollTopButton, setShowScrollTopButton] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
+    const handleScroll = () => {
+      setShowScrollTopButton(window.pageYOffset > threshold);
+    };
 
-  return debouncedValue;
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [threshold]);
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  return { showScrollTopButton, scrollToTop };
 }
 
 export default function EmojiBrowser() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [visibleEmojis, setVisibleEmojis] = useState<Emoji[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [isDataLoaded, setIsDataLoaded] = useState<boolean>(true);
-  const [showScrollTopButton, setShowScrollTopButton] = useState(false);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
 
   const infiniteScrollTrigger = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
+  const { showScrollTopButton, scrollToTop } = useScrollToTop(SCROLL_THRESHOLD);
 
-  const debouncedSearchTerm = useDebounce(searchTerm, DEBOUNCE_DELAY);
-
-  const filteredEmojis = useMemo(
-    () =>
-      emojis.filter((emoji: Emoji) =>
-        emoji.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      ),
-    [debouncedSearchTerm]
+  // Create a debounced search term setter
+  const debouncedSetSearchTerm = useMemo(
+    () => debounce((value: string) => {
+      setSearchTerm(value);
+      setIsSearching(true);
+    }, 300),
+    []
   );
 
+  // Modified query to fetch emojis based on search term
+  const { data: fetchedEmojis, isLoading, error } = useQuery(
+    ['emojis', searchTerm],
+    async () => {
+      if (searchTerm.trim() === '') {
+        // If search term is empty, return all emojis
+        return emojis;
+      } else {
+        // Otherwise, fetch filtered emojis from API
+        const response = await fetch(`/api/suggestion?query=${searchTerm}`);
+        if (!response.ok) {
+          toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+              "Unable to load the emoji list. Please refresh the page or try again later.",
+          });
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return Array.isArray(data.emojis) ? data.emojis : [];
+      }
+    },
+    {
+      keepPreviousData: true,
+      onSettled: () => setIsSearching(false),
+    }
+  );
+
+  // Update visibleEmojis when fetchedEmojis changes
   useEffect(() => {
-    setIsDataLoaded(emojis.length > 0);
-  }, []);
+    if (fetchedEmojis) {
+      setVisibleEmojis(fetchedEmojis.slice(0, ITEMS_PER_PAGE));
+      setCurrentPage(1);
+    }
+  }, [fetchedEmojis]);
 
   useEffect(() => {
-    if (!isDataLoaded) {
+    if (emojis.length === 0) {
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
@@ -60,24 +101,21 @@ export default function EmojiBrowser() {
           "Unable to load the emoji list. Please refresh the page or try again later.",
       });
     }
-  }, [isDataLoaded, toast]);
-
-  useEffect(() => {
-    setVisibleEmojis(filteredEmojis.slice(0, ITEMS_PER_PAGE));
-    setCurrentPage(1);
-  }, [filteredEmojis]);
+  }, [toast]);
 
   const loadMoreEmojis = useCallback(() => {
+    if (!fetchedEmojis) return;
+
     const nextPage = currentPage + 1;
     const startIndex = currentPage * ITEMS_PER_PAGE;
     const endIndex = nextPage * ITEMS_PER_PAGE;
-    const newEmojis = filteredEmojis.slice(startIndex, endIndex);
+    const newEmojis = fetchedEmojis.slice(startIndex, endIndex);
 
     if (newEmojis.length > 0) {
       setVisibleEmojis((prevEmojis) => [...prevEmojis, ...newEmojis]);
       setCurrentPage(nextPage);
     }
-  }, [currentPage, filteredEmojis]);
+  }, [currentPage, fetchedEmojis]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -87,25 +125,25 @@ export default function EmojiBrowser() {
       { threshold: 1.0 }
     );
 
-    if (infiniteScrollTrigger.current) {
-      observer.observe(infiniteScrollTrigger.current);
+    const currentTrigger = infiniteScrollTrigger.current;
+    if (currentTrigger) {
+      observer.observe(currentTrigger);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      if (currentTrigger) {
+        observer.unobserve(currentTrigger);
+      }
+    };
   }, [loadMoreEmojis]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTopButton(window.pageYOffset > SCROLL_THRESHOLD);
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      debouncedSetSearchTerm(value);
+    },
+    [debouncedSetSearchTerm]
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -114,16 +152,28 @@ export default function EmojiBrowser() {
         type="text"
         placeholder="Search emojis..."
         className="mb-6"
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-          setSearchTerm(e.target.value)
-        }
+        onChange={(e) => debouncedSetSearchTerm(e.target.value)}
       />
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-x-6 gap-y-4">
-        {visibleEmojis.map((emoji: Emoji) => (
-          <EmojiCard key={emoji.char} emoji={emoji} />
-        ))}
-      </div>
+      {(isLoading || isSearching) && (
+        <div className="flex justify-center items-center h-32">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      )}
+
+      {error instanceof Error && (
+        <div className="text-red-500 text-center mb-4">
+          {error.message || "Error loading emojis. Please try again."}
+        </div>
+      )}
+
+      {!isLoading && !isSearching && !error && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-x-6 gap-y-4">
+          {visibleEmojis.map((emoji: Emoji) => (
+            <EmojiCard key={emoji.char} emoji={emoji} />
+          ))}
+        </div>
+      )}
 
       <div ref={infiniteScrollTrigger} style={{ height: "1px" }} />
 
