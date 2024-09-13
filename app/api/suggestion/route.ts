@@ -4,30 +4,34 @@ import { type NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "https://api.deepseek.com",
-  apiKey: process.env.DEEPSEEK_APIKEY,
+  baseURL: process.env.AI_PROVIDER_API_URL,
+  apiKey: process.env.AI_PROVIDER_API_KEY,
 });
 
 const systemPrompt = `
-You are an emoji expert. Given a text input in English or Chinese, extract relevant emojis. Provide a concise JSON output with the following structure for each emoji:
+You are an emoji expert. Given a text input in English or Chinese, extract relevant emojis. Provide a concise JSON output as an array of emoji objects with the following structure:
 
-{
-  "name": "emoji name in English",
-  "char": "emoji character",
-  "category": "main category",
-  "group": "group name",
-  "subgroup": "subgroup name"
-}
+[
+  {
+    "name": "emoji name in English",
+    "char": "emoji character",
+    "category": "main category",
+    "group": "group name",
+    "subgroup": "subgroup name"
+  },
+  // ... more emoji objects ...
+]
 
 Guidelines:
-1. Prioritize emojis that best represent the input's sentiment and key concepts.
-2. Ensure diversity in the selected emojis (avoid repetition of similar concepts).
-3. For Chinese input, use English names for the emojis.
-4. Exclude the "codes" field to simplify the output.
-5. Ensure that each "char" field is unique within the output set to avoid duplicate emojis.
-6. The number of emojis in the output should be flexible based on the input's complexity, ranging from a few to up to 50.
-7. Aim for a minimum of 5 emojis when possible, but prioritize relevance over quantity.
-8. For longer or more complex inputs, provide more emojis to capture the full range of concepts and emotions.
+1. Always return a JSON array, even if there's only one emoji.
+2. Prioritize emojis that best represent the input's sentiment and key concepts.
+3. Ensure diversity in the selected emojis (avoid repetition of similar concepts).
+4. For Chinese input, use English names for the emojis.
+5. Exclude the "codes" field to simplify the output.
+6. Ensure that each "char" field is unique within the output set to avoid duplicate emojis.
+7. The number of emojis in the output should be flexible based on the input's complexity, ranging from a few to up to 50.
+8. Aim for a minimum of 5 emojis when possible, but prioritize relevance over quantity.
+9. For longer or more complex inputs, provide more emojis to capture the full range of concepts and emotions.
 
 Examples:
 
@@ -87,8 +91,9 @@ export async function GET(request: NextRequest) {
         { role: "user", content: query },
       ],
     });
-
-    const emojis = JSON.parse(completion.choices[0].message.content ?? "[]");
+    console.log(completion.choices[0].message.content);
+    const parsedContent = JSON.parse(completion.choices[0].message.content ?? "[]");
+    const emojis = Array.isArray(parsedContent) ? parsedContent : [parsedContent];
     return NextResponse.json({ emojis: emojis });
   } catch (error) {
     console.error("Error calling OpenAI API:", error);
