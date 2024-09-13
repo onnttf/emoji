@@ -39,8 +39,9 @@ A **modern**, **fast**, and **intuitive** emoji search and browsing tool powered
 4. Set up your AI provider configurations in `.env.local`:
 
    ```shell
-   AI_PROVIDER_API_URL="https://api.example.com/v1"
-   AI_PROVIDER_API_KEY="your_api_key_here"
+   AI_PROVIDER_URL="https://api.example.com/v1"
+   AI_PROVIDER_KEY="your_api_key_here"
+   AI_PROVIDER_MODEL="gpt-4o"
    ```
 
 5. Run the development server
