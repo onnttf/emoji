@@ -1,20 +1,13 @@
 # Emoji Browser
 
-A **modern**, **fast**, and **intuitive** emoji search and browsing tool. Find the perfect emoji in seconds!
+A **modern**, **fast**, and **intuitive** emoji search and browsing tool powered by AI. Find the perfect emoji in seconds!
 
 ## Features
 
-- **Emoji Search**
-
-    Quickly find emojis by name using the search input.
-
-- **Infinite Scrolling**
-
-    Emojis load dynamically as you scroll, ensuring smooth browsing.
-
-- **Responsive Grid Layout:**
-
-    A flexible grid that adapts seamlessly to different screen sizes.
+- **AI-Powered Emoji Search**: Quickly find emojis using natural language queries.
+- **Smart Suggestions**: Get intelligent emoji recommendations based on your search history and context.
+- **Infinite Scrolling**: Emojis load dynamically as you scroll, ensuring smooth browsing.
+- **Responsive Grid Layout**: A flexible grid that adapts seamlessly to different screen sizes.
 
 ## Tech Stack
 
@@ -25,26 +18,53 @@ A **modern**, **fast**, and **intuitive** emoji search and browsing tool. Find t
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+   ```shell
+   git clone https://github.com/onnttf/emoji
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Navigate to the project directory
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+   ```shell
+   cd emoji
+   ```
+
+3. Install dependencies
+
+   ```shell
+   npm install
+   ```
+
+4. Set up your AI provider configurations in `.env.local`:
+
+   ```shell
+   AI_PROVIDER_API_URL="https://api.example.com/v1"
+   AI_PROVIDER_API_KEY="your_api_key_here"
+   ```
+
+5. Run the development server
+
+   ```shell
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Contributing
 
-We welcome contributions of all kinds! If you'd like to contribute, please fork the repository, make your changes, and open a Pull Request.
+We welcome contributions of all kinds! To contribute:
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## Lience
 
 This project is licensed under the terms of the [MIT license](./License).
+
+---
+
+Made with ❤️ by [Zhang Peng](https://github.com/onnttf)
