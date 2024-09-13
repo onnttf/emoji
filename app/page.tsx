@@ -175,7 +175,8 @@ export default function EmojiBrowser() {
   // Handle Enter key press for search
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
+      // 检查是否正在使用输入法编辑器
+      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
         handleSearch();
       }
     },
