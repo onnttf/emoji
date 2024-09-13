@@ -4,8 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: process.env.AI_PROVIDER_API_URL,
-  apiKey: process.env.AI_PROVIDER_API_KEY,
+  baseURL: process.env.AI_PROVIDER_URL,
+  apiKey: process.env.AI_PROVIDER_KEY,
 });
 
 const systemPrompt = `
@@ -83,15 +83,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const startTime = Date.now();
     const completion = await openai.chat.completions.create({
-      model: "deepseek-chat",
+      model: process.env.AI_PROVIDER_MODEL as string,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: query },
       ],
     });
-    console.log(completion.choices[0].message.content);
+    const endTime = Date.now();
+    console.log(`AI API call time: ${endTime - startTime}ms`);
     const parsedContent = JSON.parse(completion.choices[0].message.content ?? "[]");
     const emojis = Array.isArray(parsedContent) ? parsedContent : [parsedContent];
     return NextResponse.json({ emojis: emojis });
