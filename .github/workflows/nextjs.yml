@@ -74,6 +74,10 @@ jobs:
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
       - name: Build with Next.js
+        env:
+          AI_PROVIDER_URL: ${{ secrets.AI_PROVIDER_URL }}
+          AI_PROVIDER_KEY: ${{ secrets.AI_PROVIDER_KEY }}
+          AI_PROVIDER_MODEL: ${{ secrets.AI_PROVIDER_MODEL }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
