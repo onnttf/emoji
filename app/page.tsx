@@ -43,7 +43,10 @@ async function* streamEmojis(
   searchTerm: string,
   signal: AbortSignal
 ): AsyncGenerator<Emoji[], void, undefined> {
-  const response = await fetch(`/api/suggestion?query=${encodeURIComponent(searchTerm)}`, { signal });
+  const response = await fetch(
+    `/api/suggestion?query=${encodeURIComponent(searchTerm)}`,
+    { signal }
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -68,7 +71,11 @@ async function* streamEmojis(
         emojiBatch = [];
       }
     } catch (e) {
-      console.error(`Error parsing JSON: ${e instanceof Error ? e.message : String(e)}. Problematic JSON string: ${chunk}`);
+      console.error(
+        `Error parsing JSON: ${
+          e instanceof Error ? e.message : String(e)
+        }. Problematic JSON string: ${chunk}`
+      );
     }
   }
 
@@ -88,7 +95,9 @@ export default function EmojiBrowser() {
 
   // UI state
   const [error, setError] = useState<Error | null>(null);
-  const [searchStatus, setSearchStatus] = useState<'idle' | 'searching' | 'completed'>('idle');
+  const [searchStatus, setSearchStatus] = useState<
+    "idle" | "searching" | "completed"
+  >("idle");
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Refs and hooks
@@ -109,7 +118,7 @@ export default function EmojiBrowser() {
     const end = start + ITEMS_PER_PAGE;
     const newEmojis = emojis.slice(start, end);
 
-    setVisibleEmojis(prev => [...prev, ...newEmojis]);
+    setVisibleEmojis((prev) => [...prev, ...newEmojis]);
     setCurrentPage(nextPage);
     setHasMore(end < emojis.length);
   }, [currentPage]);
@@ -117,7 +126,7 @@ export default function EmojiBrowser() {
   // Add an intersection observer for infinite scrolling
   useEffect(() => {
     const observer = new IntersectionObserver(
-      entries => {
+      (entries) => {
         if (entries[0].isIntersecting && hasMore && searchTerm.trim() === "") {
           loadMoreEmojis();
         }
@@ -135,7 +144,7 @@ export default function EmojiBrowser() {
   // Modify the handleSearch function to support streaming
   const handleSearch = useCallback(async () => {
     setError(null);
-    setSearchStatus('searching');
+    setSearchStatus("searching");
     setVisibleEmojis([]);
     setCurrentPage(1);
     setSeenEmojis(new Set());
@@ -146,30 +155,37 @@ export default function EmojiBrowser() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const stream = streamEmojis(searchTerm, abortControllerRef.current.signal);
+      const stream = streamEmojis(
+        searchTerm,
+        abortControllerRef.current.signal
+      );
       for await (const chunk of stream) {
-        setVisibleEmojis(prevEmojis => {
-          const newEmojis = chunk.filter(emoji => !seenEmojis.has(emoji.char));
-          setSeenEmojis(prevSet => {
+        setVisibleEmojis((prevEmojis) => {
+          const newEmojis = chunk.filter(
+            (emoji) => !seenEmojis.has(emoji.char)
+          );
+          setSeenEmojis((prevSet) => {
             const newSet = new Set(prevSet);
-            newEmojis.forEach(emoji => newSet.add(emoji.char));
+            newEmojis.forEach((emoji) => newSet.add(emoji.char));
             return newSet;
           });
           return [...prevEmojis, ...newEmojis];
         });
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === "AbortError") {
         return;
       }
-      setError(err instanceof Error ? err : new Error("An unexpected error occurred"));
+      setError(
+        err instanceof Error ? err : new Error("An unexpected error occurred")
+      );
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
         description: "Unable to perform the search. Please try again later.",
       });
     } finally {
-      setSearchStatus('completed');
+      setSearchStatus("completed");
     }
   }, [searchTerm, toast, seenEmojis]);
 
@@ -228,7 +244,7 @@ export default function EmojiBrowser() {
       </div>
 
       {/* Loading indicator */}
-      {searchStatus === 'searching' && visibleEmojis.length === 0 && (
+      {searchStatus === "searching" && visibleEmojis.length === 0 && (
         <div className="flex justify-center items-center h-32">
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
@@ -247,7 +263,7 @@ export default function EmojiBrowser() {
       )}
 
       {/* No results message */}
-      {searchStatus === 'completed' &&
+      {searchStatus === "completed" &&
         !error &&
         searchTerm.trim() !== "" &&
         visibleEmojis.length === 0 && (
@@ -255,7 +271,8 @@ export default function EmojiBrowser() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>No Results</AlertTitle>
             <AlertDescription>
-              No emojis found for {`"${searchTerm}"`}. Try a different search term or clear the search to see all emojis.
+              No emojis found for {`"${searchTerm}"`}. Try a different search
+              term or clear the search to see all emojis.
             </AlertDescription>
           </Alert>
         )}
@@ -278,12 +295,14 @@ export default function EmojiBrowser() {
       )} */}
 
       {/* Show "Loading more..." indicator if still searching and some emojis are already displayed */}
-      {searchStatus === 'searching' && visibleEmojis.length > 0 && searchTerm.trim() !== "" && (
-        <div className="flex justify-center items-center h-16 mt-4">
-          <Loader2 className="w-6 h-6 animate-spin mr-2" />
-          <span>Loading more...</span>
-        </div>
-      )}
+      {searchStatus === "searching" &&
+        visibleEmojis.length > 0 &&
+        searchTerm.trim() !== "" && (
+          <div className="flex justify-center items-center h-16 mt-4">
+            <Loader2 className="w-6 h-6 animate-spin mr-2" />
+            <span>Loading more...</span>
+          </div>
+        )}
 
       {/* Infinite scroll trigger */}
       {hasMore && <div ref={infiniteScrollTrigger} style={{ height: "1px" }} />}

@@ -110,14 +110,18 @@ export async function GET(request: NextRequest) {
       let totalEmojiCount = 0;
 
       for await (const chunk of completion) {
-        const content = trim(chunk.choices[0]?.delta?.content ?? '');
+        const content = trim(chunk.choices[0]?.delta?.content ?? "");
         if (content.length === 0) continue;
 
         buffer += content;
-        
-        let jsonStartIndex = buffer.indexOf('{');
-        let jsonEndIndex = buffer.lastIndexOf('}');
-        if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+
+        let jsonStartIndex = buffer.indexOf("{");
+        let jsonEndIndex = buffer.lastIndexOf("}");
+        if (
+          jsonStartIndex !== -1 &&
+          jsonEndIndex !== -1 &&
+          jsonEndIndex > jsonStartIndex
+        ) {
           let jsonStr = buffer.slice(jsonStartIndex, jsonEndIndex + 1);
           try {
             let jsonObj = JSON.parse(jsonStr);
@@ -125,7 +129,11 @@ export async function GET(request: NextRequest) {
             totalEmojiCount++;
             await writeChunk(jsonObj);
           } catch (e) {
-            console.error(`Error parsing JSON: ${e instanceof Error ? e.message : String(e)}. Problematic JSON string: ${jsonStr}`);
+            console.error(
+              `Error parsing JSON: ${
+                e instanceof Error ? e.message : String(e)
+              }. Problematic JSON string: ${jsonStr}`
+            );
           } finally {
             buffer = "";
           }
@@ -139,9 +147,12 @@ export async function GET(request: NextRequest) {
 
       const endTime = Date.now();
       const duration = endTime - startTime;
-      console.log(`AI API call for query: "${query}" completed at ${new Date().toISOString()}. Duration: ${duration}ms, Total emojis: ${totalEmojiCount}`);
+      console.log(
+        `AI API call for query: "${query}" completed at ${new Date().toISOString()}. Duration: ${duration}ms, Total emojis: ${totalEmojiCount}`
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error(`AI API error for query "${query}": ${errorMessage}`);
       // await writeChunk({ error: "Internal server error" });
     } finally {
@@ -150,6 +161,6 @@ export async function GET(request: NextRequest) {
   })();
 
   return new NextResponse(stream.readable, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { "Content-Type": "application/json" },
   });
 }
