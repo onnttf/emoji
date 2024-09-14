@@ -161,6 +161,6 @@ export async function GET(request: NextRequest) {
   })();
 
   return new NextResponse(stream.readable, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/event-stream" },
   });
 }
