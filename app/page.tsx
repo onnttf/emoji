@@ -38,40 +38,42 @@ function useScrollToTop(threshold: number) {
   return { showScrollTopButton, scrollToTop };
 }
 
-// Fetch emojis based on search term
-async function fetchEmojis(
+// Modify the fetchEmojis function to support streaming
+async function* streamEmojis(
   searchTerm: string,
-  toast: ReturnType<typeof useToast>["toast"]
-): Promise<Emoji[]> {
-  if (searchTerm.trim() === "") {
-    return emojis;
-  } else {
+  signal: AbortSignal
+): AsyncGenerator<Emoji[], void, undefined> {
+  const response = await fetch(`/api/suggestion?query=${encodeURIComponent(searchTerm)}`, { signal });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("ReadableStream not supported");
+  }
+
+  const decoder = new TextDecoder("utf-8");
+  let emojiBatch: Emoji[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+
     try {
-      const response = await fetch(`/api/suggestion?query=${searchTerm}`);
-      if (!response.ok) {
-        throw new Error(
-          `Unable to fetch emojis. Server responded with status: ${response.status}`
-        );
+      const emojiObject = JSON.parse(chunk);
+      emojiBatch.push(emojiObject);
+      if (emojiBatch.length >= 1) {
+        yield emojiBatch;
+        emojiBatch = [];
       }
-      const data = await response.json();
-      if (!Array.isArray(data.emojis)) {
-        throw new Error("Invalid data format received from server");
-      }
-      return data.emojis;
-    } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (error instanceof Response) {
-        errorMessage = `Network response was not ok (${error.status})`;
-      }
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: errorMessage,
-      });
-      throw error;
+    } catch (e) {
+      console.error(`Error parsing JSON: ${e instanceof Error ? e.message : String(e)}. Problematic JSON string: ${chunk}`);
     }
+  }
+
+  if (emojiBatch.length > 0) {
+    yield emojiBatch;
   }
 }
 
@@ -79,94 +81,106 @@ async function fetchEmojis(
 export default function EmojiBrowser() {
   // State for search and emoji display
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [visibleEmojis, setVisibleEmojis] = useState<Emoji[]>(emojis);
-  const [displayedEmojis, setDisplayedEmojis] = useState<Emoji[]>([]);
+  const [visibleEmojis, setVisibleEmojis] = useState<Emoji[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [seenEmojis, setSeenEmojis] = useState<Set<string>>(new Set());
+  const [hasMore, setHasMore] = useState(true);
 
   // UI state
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'searching' | 'completed'>('idle');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Refs and hooks
   const infiniteScrollTrigger = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
   const { showScrollTopButton, scrollToTop } = useScrollToTop(SCROLL_THRESHOLD);
 
-  // Initialize displayed emojis on visible emojis change
+  // Load initial emojis
   useEffect(() => {
-    setDisplayedEmojis(visibleEmojis.slice(0, ITEMS_PER_PAGE));
-  }, [visibleEmojis]);
+    setVisibleEmojis(emojis.slice(0, ITEMS_PER_PAGE));
+    setHasMore(emojis.length > ITEMS_PER_PAGE);
+  }, []);
 
-  // Load more emojis for infinite scroll
+  // Function to load more emojis
   const loadMoreEmojis = useCallback(() => {
     const nextPage = currentPage + 1;
-    const startIndex = currentPage * ITEMS_PER_PAGE;
-    const endIndex = nextPage * ITEMS_PER_PAGE;
-    const newEmojis = visibleEmojis.slice(startIndex, endIndex);
+    const start = currentPage * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newEmojis = emojis.slice(start, end);
 
-    if (newEmojis.length > 0) {
-      setDisplayedEmojis((prevEmojis) => [...prevEmojis, ...newEmojis]);
-      setCurrentPage(nextPage);
-    }
-  }, [currentPage, visibleEmojis]);
+    setVisibleEmojis(prev => [...prev, ...newEmojis]);
+    setCurrentPage(nextPage);
+    setHasMore(end < emojis.length);
+  }, [currentPage]);
 
-  // Set up intersection observer for infinite scroll
+  // Add an intersection observer for infinite scrolling
   useEffect(() => {
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) loadMoreEmojis();
+      entries => {
+        if (entries[0].isIntersecting && hasMore && searchTerm.trim() === "") {
+          loadMoreEmojis();
+        }
       },
       { threshold: 1.0 }
     );
 
-    const currentTrigger = infiniteScrollTrigger.current;
-    if (currentTrigger) {
-      observer.observe(currentTrigger);
+    if (infiniteScrollTrigger.current) {
+      observer.observe(infiniteScrollTrigger.current);
     }
 
-    return () => {
-      if (currentTrigger) {
-        observer.unobserve(currentTrigger);
-      }
-    };
-  }, [loadMoreEmojis]);
+    return () => observer.disconnect();
+  }, [loadMoreEmojis, hasMore, searchTerm]);
 
-  // Handle search functionality
+  // Modify the handleSearch function to support streaming
   const handleSearch = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
+    setSearchStatus('searching');
+    setVisibleEmojis([]);
+    setCurrentPage(1);
+    setSeenEmojis(new Set());
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
-      const results = await fetchEmojis(searchTerm, toast);
-      setVisibleEmojis(results);
-      setCurrentPage(1);
-      if (results.length === 0) {
-        toast({
-          title: "No results found",
-          description: `No emojis match "${searchTerm}". Try a different search term.`,
-          duration: 3000,
+      const stream = streamEmojis(searchTerm, abortControllerRef.current.signal);
+      for await (const chunk of stream) {
+        setVisibleEmojis(prevEmojis => {
+          const newEmojis = chunk.filter(emoji => !seenEmojis.has(emoji.char));
+          setSeenEmojis(prevSet => {
+            const newSet = new Set(prevSet);
+            newEmojis.forEach(emoji => newSet.add(emoji.char));
+            return newSet;
+          });
+          return [...prevEmojis, ...newEmojis];
         });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err : new Error("An unexpected error occurred")
-      );
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      setError(err instanceof Error ? err : new Error("An unexpected error occurred"));
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
         description: "Unable to perform the search. Please try again later.",
       });
     } finally {
-      setIsLoading(false);
+      setSearchStatus('completed');
     }
-  }, [searchTerm, toast]);
+  }, [searchTerm, toast, seenEmojis]);
 
-  // Handle search input change
+  // Modify handleSearchChange
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchTerm(e.target.value);
       if (e.target.value.trim() === "") {
-        setVisibleEmojis(emojis);
+        setVisibleEmojis(emojis.slice(0, ITEMS_PER_PAGE));
         setCurrentPage(1);
+        setHasMore(emojis.length > ITEMS_PER_PAGE);
       }
     },
     []
@@ -214,7 +228,7 @@ export default function EmojiBrowser() {
       </div>
 
       {/* Loading indicator */}
-      {isLoading && (
+      {searchStatus === 'searching' && visibleEmojis.length === 0 && (
         <div className="flex justify-center items-center h-32">
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
@@ -233,10 +247,10 @@ export default function EmojiBrowser() {
       )}
 
       {/* No results message */}
-      {!isLoading &&
+      {searchStatus === 'completed' &&
         !error &&
         searchTerm.trim() !== "" &&
-        displayedEmojis.length === 0 && (
+        visibleEmojis.length === 0 && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>No Results</AlertTitle>
@@ -247,16 +261,32 @@ export default function EmojiBrowser() {
         )}
 
       {/* Emoji grid */}
-      {!isLoading && !error && displayedEmojis.length > 0 && (
+      {!error && visibleEmojis.length > 0 && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-x-6 gap-y-4">
-          {displayedEmojis.map((emoji: Emoji) => (
-            <EmojiCard key={emoji.char} emoji={emoji} />
+          {visibleEmojis.map((emoji: Emoji) => (
+            <EmojiCard key={`${emoji.char}-${emoji.name}`} emoji={emoji} />
           ))}
         </div>
       )}
 
+      {/* Show "Loading more..." indicator if loading more default emojis */}
+      {/* {hasMore && searchTerm.trim() === "" && (
+        <div className="flex justify-center items-center h-16 mt-4">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span>Loading more...</span>
+        </div>
+      )} */}
+
+      {/* Show "Loading more..." indicator if still searching and some emojis are already displayed */}
+      {searchStatus === 'searching' && visibleEmojis.length > 0 && searchTerm.trim() !== "" && (
+        <div className="flex justify-center items-center h-16 mt-4">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span>Loading more...</span>
+        </div>
+      )}
+
       {/* Infinite scroll trigger */}
-      <div ref={infiniteScrollTrigger} style={{ height: "1px" }} />
+      {hasMore && <div ref={infiniteScrollTrigger} style={{ height: "1px" }} />}
 
       {/* Scroll to top button */}
       {showScrollTopButton && (

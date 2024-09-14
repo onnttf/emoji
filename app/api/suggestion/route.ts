@@ -1,7 +1,8 @@
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { trim } from "lodash";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_PROVIDER_URL,
@@ -75,6 +76,7 @@ Remember, the number of emojis should vary based on the input's complexity and c
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query");
+
   if (!query) {
     return NextResponse.json(
       { error: "Query parameter is required" },
@@ -82,26 +84,72 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
-    const startTime = Date.now();
-    const completion = await openai.chat.completions.create({
-      model: process.env.AI_PROVIDER_MODEL as string,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: query },
-      ],
-    });
-    const endTime = Date.now();
-    console.log(`AI API call time: ${endTime - startTime}ms`);
-    const parsedContent = JSON.parse(completion.choices[0].message.content ?? "[]");
-    const emojis = Array.isArray(parsedContent) ? parsedContent : [parsedContent];
-    return NextResponse.json({ emojis: emojis });
-  } catch (error) {
-    console.error("Error calling OpenAI API:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const writeChunk = async (chunk: any) => {
+    await writer.write(encoder.encode(JSON.stringify(chunk)));
+  };
+
+  (async () => {
+    try {
+      const startTime = Date.now();
+
+      const completion = await openai.chat.completions.create({
+        model: process.env.AI_PROVIDER_MODEL as string,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: query },
+        ],
+        stream: true,
+      });
+
+      let buffer = "";
+      let totalEmojiCount = 0;
+
+      for await (const chunk of completion) {
+        const content = trim(chunk.choices[0]?.delta?.content ?? '');
+        if (content.length === 0) continue;
+
+        buffer += content;
+        
+        let jsonStartIndex = buffer.indexOf('{');
+        let jsonEndIndex = buffer.lastIndexOf('}');
+        if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+          let jsonStr = buffer.slice(jsonStartIndex, jsonEndIndex + 1);
+          try {
+            let jsonObj = JSON.parse(jsonStr);
+            buffer = buffer.slice(jsonEndIndex + 1);
+            totalEmojiCount++;
+            await writeChunk(jsonObj);
+          } catch (e) {
+            console.error(`Error parsing JSON: ${e instanceof Error ? e.message : String(e)}. Problematic JSON string: ${jsonStr}`);
+          } finally {
+            buffer = "";
+          }
+        }
+      }
+
+      // 处理可能的剩余buffer
+      if (buffer.trim()) {
+        console.warn(`Unprocessed buffer content: ${buffer}`);
+      }
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      console.log(`AI API call for query: "${query}" completed at ${new Date().toISOString()}. Duration: ${duration}ms, Total emojis: ${totalEmojiCount}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`AI API error for query "${query}": ${errorMessage}`);
+      // await writeChunk({ error: "Internal server error" });
+    } finally {
+      writer.close();
+    }
+  })();
+
+  return new NextResponse(stream.readable, {
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
