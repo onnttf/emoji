@@ -55,7 +55,7 @@ async function* streamEmojis(
     throw new Error("ReadableStream not supported");
   }
 
-  const decoder = new TextDecoder("utf-8");
+  const decoder = new TextDecoder();
   let emojiBatch: Emoji[] = [];
 
   while (true) {
@@ -64,6 +64,7 @@ async function* streamEmojis(
     const chunk = decoder.decode(value, { stream: true });
 
     try {
+      console.log(chunk);
       const emojiObject = JSON.parse(chunk);
       emojiBatch.push(emojiObject);
       if (emojiBatch.length >= 1) {
